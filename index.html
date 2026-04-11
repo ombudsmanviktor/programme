@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weekly Schedule Board</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary:      #45c4a0;
+      --primary-dark: #2fa882;
+      --primary-light:#d0f3ec;
+      --accent:       #E960B2;
+      --accent-dark:  #c94497;
+      --accent-light: #fce4f4;
+      --neutral-bg:   #f4f7f6;
+      --card-bg:      #ffffff;
+      --text-main:    #1a1a2e;
+      --text-muted:   #6c757d;
+      --border:       #e2e8f0;
+      --shadow:       0 2px 8px rgba(0,0,0,0.08);
+      --shadow-lg:    0 8px 32px rgba(0,0,0,0.15);
+      --radius:       8px;
+      --font:         'Inter', system-ui, sans-serif;
+      --label-w:      164px;
+    }
+
+    html, body { height: 100%; font-family: var(--font); color: var(--text-main); background: var(--neutral-bg); }
+
+    .app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+    /* ── Header ─────────────────────────────────────────────── */
+    .board-header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white;
+      padding: 14px 24px 12px;
+      flex-shrink: 0;
+      box-shadow: 0 2px 12px rgba(69,196,160,0.35);
+    }
+
+    #board-title {
+      font-size: 1.55rem;
+      font-weight: 700;
+      outline: none;
+      border-bottom: 2px solid transparent;
+      transition: border-color 0.2s;
+      display: inline-block;
+      min-width: 80px;
+      cursor: text;
+      line-height: 1.3;
+    }
+    #board-title:focus { border-bottom-color: rgba(255,255,255,0.7); }
+    #board-title:empty::before { content: attr(data-placeholder); opacity: 0.45; }
+
+    #board-desc {
+      font-size: 0.875rem;
+      opacity: 0.85;
+      outline: none;
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.2s;
+      display: inline-block;
+      min-width: 80px;
+      cursor: text;
+      margin-top: 3px;
+    }
+    #board-desc:focus { border-bottom-color: rgba(255,255,255,0.45); }
+    #board-desc:empty::before { content: attr(data-placeholder); opacity: 0.45; }
+
+    .week-selector {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .week-selector label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.82rem;
+      font-weight: 500;
+    }
+    .week-selector input[type="number"] {
+      width: 70px;
+      padding: 4px 7px;
+      border: 1.5px solid rgba(255,255,255,0.45);
+      border-radius: 6px;
+      background: rgba(255,255,255,0.15);
+      color: white;
+      font-size: 0.82rem;
+      font-family: var(--font);
+      outline: none;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .week-selector input[type="number"]:focus {
+      border-color: white;
+      background: rgba(255,255,255,0.25);
+    }
+    .week-selector input::-webkit-inner-spin-button,
+    .week-selector input::-webkit-outer-spin-button { opacity: 0.5; }
+
+    #week-range-label {
+      font-size: 0.82rem;
+      background: rgba(255,255,255,0.2);
+      padding: 3px 11px;
+      border-radius: 20px;
+      font-weight: 500;
+    }
+
+    /* ── Board Wrapper & Grid ────────────────────────────────── */
+    .board-wrapper {
+      flex: 1;
+      overflow: auto;
+    }
+    .board-wrapper::-webkit-scrollbar { width: 8px; height: 8px; }
+    .board-wrapper::-webkit-scrollbar-track { background: var(--neutral-bg); }
+    .board-wrapper::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+    .board-wrapper::-webkit-scrollbar-thumb:hover { background: #aaa; }
+
+    .board-grid {
+      display: grid;
+      grid-template-columns: var(--label-w) repeat(7, minmax(155px, 1fr));
+      min-width: calc(var(--label-w) + 7 * 155px);
+    }
+
+    .cell {
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* Sticky corner */
+    .cell.corner {
+      position: sticky; top: 0; left: 0; z-index: 30;
+      background: var(--primary-dark);
+      border-right: 2px solid rgba(255,255,255,0.15);
+      border-bottom: 2px solid rgba(255,255,255,0.15);
+    }
+
+    /* Sticky day headers */
+    .cell.day-header {
+      position: sticky; top: 0; z-index: 20;
+      background: var(--primary);
+      color: white;
+      text-align: center;
+      padding: 9px 6px;
+      font-weight: 600;
+    }
+    .day-header .day-name {
+      display: block;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      opacity: 0.8;
+    }
+    .day-header .day-date {
+      display: block;
+      font-size: 0.92rem;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    /* Sticky slot labels */
+    .cell.slot-label {
+      position: sticky; left: 0; z-index: 10;
+      background: var(--neutral-bg);
+      border-right: 2px solid var(--border);
+      padding: 6px 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 76px;
+    }
+    .slot-label.break-slot { background: var(--primary-light); min-height: 48px; }
+    .slot-label .slot-name { font-size: 0.75rem; font-weight: 600; color: var(--text-main); }
+    .slot-label .slot-time { font-size: 0.67rem; color: var(--text-muted); margin-top: 2px; }
+    .slot-label.break-slot .slot-name { color: var(--primary-dark); }
+
+    /* Slot cells */
+    .cell.slot-cell {
+      padding: 6px;
+      min-height: 76px;
+      background: white;
+      transition: background 0.12s;
+      vertical-align: top;
+      position: relative;
+    }
+    .cell.slot-cell.break-cell {
+      background: #f0faf7;
+      min-height: 48px;
+    }
+    .cell.slot-cell.drag-over {
+      background: var(--accent-light) !important;
+      outline: 2px dashed var(--accent);
+      outline-offset: -3px;
+    }
+
+    /* ── Cards ──────────────────────────────────────────────── */
+    .card-chip {
+      background: var(--card-bg);
+      border-left: 4px solid var(--accent);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 7px 9px;
+      margin-bottom: 5px;
+      cursor: grab;
+      font-size: 0.76rem;
+      transition: transform 0.14s, box-shadow 0.14s, opacity 0.14s;
+      word-break: break-word;
+      user-select: none;
+    }
+    .card-chip:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.13);
+    }
+    .card-chip:active { cursor: grabbing; }
+    .card-chip.dragging { opacity: 0.38; transform: scale(0.96); }
+    .chip-title { font-weight: 600; color: var(--text-main); font-size: 0.8rem; margin-bottom: 2px; }
+    .chip-loc, .chip-ppl {
+      color: var(--text-muted);
+      font-size: 0.68rem;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Add button */
+    .add-btn {
+      display: none;
+      width: 100%;
+      background: transparent;
+      border: 1.5px dashed var(--primary);
+      color: var(--primary);
+      border-radius: var(--radius);
+      padding: 3px 0;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 700;
+      transition: background 0.14s;
+      margin-top: 2px;
+      font-family: var(--font);
+    }
+    .slot-cell:hover .add-btn { display: block; }
+    .add-btn:hover { background: var(--primary-light); }
+
+    /* ── Modal ──────────────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.42);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+      backdrop-filter: blur(2px);
+    }
+    .modal-overlay.hidden { display: none; }
+
+    .modal-box {
+      background: white;
+      border-radius: 12px;
+      box-shadow: var(--shadow-lg);
+      padding: 28px;
+      width: min(480px, 95vw);
+      max-height: 90vh;
+      overflow-y: auto;
+      position: relative;
+    }
+    .modal-box h2 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: var(--text-main);
+    }
+    .modal-close {
+      position: absolute; top: 14px; right: 14px;
+      background: none; border: none;
+      font-size: 1.4rem; cursor: pointer;
+      color: var(--text-muted);
+      line-height: 1; padding: 2px 7px;
+      border-radius: 4px; transition: background 0.14s;
+    }
+    .modal-close:hover { background: var(--neutral-bg); }
+
+    .form-group { margin-bottom: 15px; }
+    .form-group label {
+      display: block;
+      font-size: 0.73rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 5px;
+    }
+    .form-group input,
+    .form-group textarea {
+      width: 100%;
+      padding: 9px 11px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.88rem;
+      font-family: var(--font);
+      color: var(--text-main);
+      outline: none;
+      transition: border-color 0.18s;
+    }
+    .form-group input:focus,
+    .form-group textarea:focus { border-color: var(--primary); }
+    .form-group textarea { min-height: 78px; resize: vertical; }
+
+    .modal-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 20px;
+      gap: 10px;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 9px 22px;
+      border-radius: var(--radius);
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--font);
+      transition: background 0.14s;
+    }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-danger {
+      background: transparent;
+      color: #e53e3e;
+      border: 1.5px solid #e53e3e;
+      padding: 9px 16px;
+      border-radius: var(--radius);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--font);
+      transition: background 0.14s, color 0.14s;
+    }
+    .btn-danger:hover { background: #e53e3e; color: white; }
+    .btn-danger.hidden { display: none; }
+
+    /* ── Embed Panel ─────────────────────────────────────────── */
+    .embed-panel {
+      position: fixed;
+      bottom: 0; right: 24px;
+      background: white;
+      border-radius: 12px 12px 0 0;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.11);
+      z-index: 500;
+      min-width: 310px;
+      max-width: 430px;
+    }
+    .embed-toggle {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 12px 12px 0 0;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.82rem;
+      font-family: var(--font);
+      width: 100%;
+      text-align: center;
+      letter-spacing: 0.3px;
+      transition: background 0.14s;
+    }
+    .embed-toggle:hover { background: var(--accent-dark); }
+    .embed-body { padding: 14px 16px 16px; border-top: 1px solid var(--border); }
+    .embed-panel.collapsed .embed-body { display: none; }
+    .embed-body > p { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 11px; }
+    .embed-fields { display: flex; gap: 12px; margin-bottom: 11px; }
+    .embed-fields label {
+      display: flex; flex-direction: column; gap: 4px;
+      font-size: 0.72rem; font-weight: 600;
+      color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px;
+    }
+    .embed-fields input {
+      width: 90px; padding: 5px 8px;
+      border: 1.5px solid var(--border);
+      border-radius: 6px; font-size: 0.83rem; font-family: var(--font); outline: none;
+    }
+    .embed-fields input:focus { border-color: var(--primary); }
+    #embed-code {
+      width: 100%; padding: 8px;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.68rem; font-family: monospace;
+      resize: none; color: var(--text-muted);
+      background: var(--neutral-bg);
+      margin-bottom: 9px;
+    }
+    .embed-note { font-size: 0.7rem; color: var(--text-muted); margin-top: 8px; }
+    .embed-note.warn { color: #e53e3e; font-weight: 600; }
+
+    /* ── Toast ───────────────────────────────────────────────── */
+    .toast {
+      position: fixed;
+      bottom: 80px; left: 50%;
+      transform: translateX(-50%) translateY(16px);
+      background: #1a1a2e; color: white;
+      padding: 9px 20px;
+      border-radius: 20px;
+      font-size: 0.83rem; font-weight: 500;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.28s, transform 0.28s;
+      z-index: 2000;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── Error Banner ────────────────────────────────────────── */
+    .error-banner {
+      background: #fff5f5; border-bottom: 1.5px solid #feb2b2;
+      color: #c53030; padding: 9px 20px;
+      font-size: 0.82rem;
+      display: flex; justify-content: space-between; align-items: center;
+      flex-shrink: 0;
+    }
+    .error-banner.hidden { display: none; }
+    .error-banner button { background: none; border: none; cursor: pointer; font-size: 1.1rem; color: #c53030; }
+
+    /* ── View Mode ───────────────────────────────────────────── */
+    .app.view-mode .add-btn { display: none !important; }
+    .app.view-mode .card-chip { cursor: default !important; pointer-events: none !important; }
+    .app.view-mode [contenteditable] { pointer-events: none; outline: none !important; border-color: transparent !important; cursor: default; }
+    .app.view-mode .week-selector input { pointer-events: none; }
+    .app.view-mode .embed-panel { display: none !important; }
+  </style>
+</head>
+<body>
+
+<div id="app" class="app">
+
+  <!-- Error Banner -->
+  <div id="error-banner" class="error-banner hidden">
+    <span id="error-msg"></span>
+    <button onclick="document.getElementById('error-banner').classList.add('hidden')" aria-label="Fechar">&times;</button>
+  </div>
+
+  <!-- Board Header -->
+  <header class="board-header">
+    <h1 id="board-title" contenteditable="true" spellcheck="false" data-placeholder="Título do Quadro"></h1>
+    <p  id="board-desc"  contenteditable="true" spellcheck="false" data-placeholder="Descrição do quadro..."></p>
+    <div class="week-selector">
+      <label>Ano <input type="number" id="sel-year" min="2000" max="2099"></label>
+      <label>Semana <input type="number" id="sel-week" min="1" max="53"></label>
+      <span id="week-range-label">—</span>
+    </div>
+  </header>
+
+  <!-- Board Grid (cells injected by JS) -->
+  <div class="board-wrapper">
+    <div class="board-grid" id="board-grid"></div>
+  </div>
+
+  <!-- Card Modal -->
+  <div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-heading">
+    <div class="modal-box">
+      <button class="modal-close" id="modal-close" aria-label="Fechar">&times;</button>
+      <h2 id="modal-heading">Novo Card</h2>
+      <form id="card-form" novalidate>
+        <div class="form-group">
+          <label for="f-title">Título *</label>
+          <input type="text" id="f-title" required placeholder="Nome da atividade">
+        </div>
+        <div class="form-group">
+          <label for="f-location">Local / Ensalamento</label>
+          <input type="text" id="f-location" placeholder="Ex: Sala 301, Auditório B">
+        </div>
+        <div class="form-group">
+          <label for="f-participants">Participantes</label>
+          <input type="text" id="f-participants" placeholder="Ex: Alice, Bob, Carol">
+        </div>
+        <div class="form-group">
+          <label for="f-desc">Descrição</label>
+          <textarea id="f-desc" placeholder="Breve descrição da atividade..."></textarea>
+        </div>
+        <input type="hidden" id="f-id">
+        <input type="hidden" id="f-day">
+        <input type="hidden" id="f-slot">
+        <div class="modal-actions">
+          <button type="button" id="btn-delete" class="btn-danger hidden">Excluir</button>
+          <button type="submit" class="btn-primary">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Embed Panel -->
+  <div id="embed-panel" class="embed-panel collapsed">
+    <button id="embed-toggle" class="embed-toggle">&lt;/&gt; Incorporar Quadro</button>
+    <div class="embed-body">
+      <p>Gere um iframe estático e somente leitura deste quadro:</p>
+      <div class="embed-fields">
+        <label>Largura (px)<input type="number" id="em-w" value="1100"></label>
+        <label>Altura (px)<input type="number" id="em-h" value="650"></label>
+      </div>
+      <textarea id="embed-code" readonly rows="4" spellcheck="false"></textarea>
+      <button id="btn-copy-embed" class="btn-primary" style="width:100%">Copiar Código</button>
+      <p id="embed-note-el" class="embed-note">Tamanho da URL: <span id="url-len">0</span> caracteres</p>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+</div><!-- /#app -->
+
+<script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ══════════════════════════════════════════════════════════
+     1. CONSTANTS
+  ══════════════════════════════════════════════════════════ */
+
+  const SLOTS = [
+    { id: 'morning1',     label: 'Manhã — Bloco 1',  time: '08:00–10:00', type: 'work'  },
+    { id: 'coffeebreak1', label: '☕ Coffee Break',   time: '10:00–10:30', type: 'break' },
+    { id: 'morning2',     label: 'Manhã — Bloco 2',  time: '10:30–12:00', type: 'work'  },
+    { id: 'lunch',        label: '🍽 Almoço',         time: '12:00–13:30', type: 'break' },
+    { id: 'afternoon1',   label: 'Tarde — Bloco 1',  time: '13:30–15:30', type: 'work'  },
+    { id: 'coffeebreak2', label: '☕ Coffee Break',   time: '15:30–16:00', type: 'break' },
+    { id: 'afternoon2',   label: 'Tarde — Bloco 2',  time: '16:00–18:00', type: 'work'  },
+    { id: 'dinner',       label: '🌙 Jantar',         time: '18:00–19:30', type: 'break' },
+    { id: 'night1',       label: 'Noite — Bloco 1',  time: '19:30–21:30', type: 'work'  },
+    { id: 'night2',       label: 'Noite — Bloco 2',  time: '21:30–23:00', type: 'work'  },
+  ];
+
+  const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const LS_KEY = 'wsb-v1';
+  const IS_VIEW_MODE = new URLSearchParams(window.location.search).get('view') === '1';
+
+  /* ══════════════════════════════════════════════════════════
+     2. STATE
+  ══════════════════════════════════════════════════════════ */
+
+  let state = {
+    title: 'Quadro Semanal',
+    description: 'Descrição do quadro',
+    year: currentISOYear(),
+    week: currentISOWeek(),
+    cards: []
+  };
+
+  function setState(patch) {
+    Object.assign(state, patch);
+    if (!IS_VIEW_MODE) saveLS();
+    render();
+  }
+
+  function saveLS() {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+    catch (e) { if (e.name === 'QuotaExceededError') showToast('Armazenamento local cheio.'); }
+  }
+
+  function loadLS() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      const p = JSON.parse(raw);
+      p.cards = (p.cards || []).map(c => ({ participants: '', location: '', description: '', ...c }));
+      Object.assign(state, p);
+    } catch (_) {}
+  }
+
+  function addCard(data)         { setState({ cards: [...state.cards, { ...data, id: uid() }] }); }
+  function updateCard(id, patch) { setState({ cards: state.cards.map(c => c.id === id ? { ...c, ...patch } : c) }); }
+  function deleteCard(id)        { setState({ cards: state.cards.filter(c => c.id !== id) }); }
+  function moveCard(id, day, slot) { updateCard(id, { day, slot }); }
+
+  /* ══════════════════════════════════════════════════════════
+     3. ISO WEEK MATH  (all Date.UTC to avoid TZ bugs)
+  ══════════════════════════════════════════════════════════ */
+
+  function getISOWeek(date) {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    const y1 = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d - y1) / 86400000) + 1) / 7);
+  }
+
+  function isoWeeksInYear(year) {
+    return getISOWeek(new Date(Date.UTC(year, 11, 28)));
+  }
+
+  function sundayOfISOWeek(year, week) {
+    const jan4 = new Date(Date.UTC(year, 0, 4));
+    const dow  = jan4.getUTCDay() || 7;
+    const mon1 = new Date(Date.UTC(year, 0, 4 - dow + 1));
+    const monW = new Date(mon1);
+    monW.setUTCDate(mon1.getUTCDate() + (week - 1) * 7);
+    const sun = new Date(monW);
+    sun.setUTCDate(monW.getUTCDate() - 1);
+    return sun;
+  }
+
+  function weekDates(year, week) {
+    const sun = sundayOfISOWeek(year, week);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(sun);
+      d.setUTCDate(d.getUTCDate() + i);
+      return d;
+    });
+  }
+
+  function currentISOWeek() { return getISOWeek(new Date()); }
+
+  function currentISOYear() {
+    const d = new Date(), w = getISOWeek(d);
+    if (w === 1  && d.getMonth() === 11) return d.getFullYear() + 1;
+    if (w >= 52  && d.getMonth() === 0)  return d.getFullYear() - 1;
+    return d.getFullYear();
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     4. BUILD GRID (once)
+  ══════════════════════════════════════════════════════════ */
+
+  function buildGrid() {
+    const grid = document.getElementById('board-grid');
+    const frag = document.createDocumentFragment();
+
+    // Corner
+    const corner = el('div', 'cell corner');
+    frag.appendChild(corner);
+
+    // Day headers
+    for (let d = 0; d < 7; d++) {
+      const c = el('div', 'cell day-header');
+      c.dataset.day = d;
+      c.innerHTML = `<span class="day-name">${DAYS[d]}</span><span class="day-date"></span>`;
+      frag.appendChild(c);
+    }
+
+    // Slot rows
+    SLOTS.forEach(slot => {
+      const isBreak = slot.type === 'break';
+
+      // Label
+      const lbl = el('div', 'cell slot-label' + (isBreak ? ' break-slot' : ''));
+      lbl.innerHTML = `<span class="slot-name">${slot.label}</span><span class="slot-time">${slot.time}</span>`;
+      frag.appendChild(lbl);
+
+      // 7 cells
+      for (let d = 0; d < 7; d++) {
+        const c = el('div', 'cell slot-cell' + (isBreak ? ' break-cell' : ''));
+        c.dataset.slot = slot.id;
+        c.dataset.day  = d;
+        const btn = el('button', 'add-btn');
+        btn.setAttribute('aria-label', 'Adicionar card');
+        btn.textContent = '+';
+        btn.addEventListener('click', () => openModal(null, d, slot.id));
+        c.appendChild(btn);
+        frag.appendChild(c);
+      }
+    });
+
+    grid.appendChild(frag);
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     5. RENDER
+  ══════════════════════════════════════════════════════════ */
+
+  function render() {
+    renderDates();
+    renderCards();
+    renderEmbedCode();
+  }
+
+  function renderDates() {
+    const dates = weekDates(state.year, state.week);
+    const fmt   = d => d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+    dates.forEach((d, i) => {
+      const span = document.querySelector(`.day-header[data-day="${i}"] .day-date`);
+      if (span) span.textContent = fmt(d);
+    });
+    const lbl = document.getElementById('week-range-label');
+    if (lbl) lbl.textContent = fmt(dates[0]) + ' – ' + fmt(dates[6]);
+  }
+
+  function renderCards() {
+    document.querySelectorAll('.card-chip').forEach(c => c.remove());
+    state.cards.forEach(card => {
+      const cell = document.querySelector(`.slot-cell[data-slot="${card.slot}"][data-day="${card.day}"]`);
+      if (!cell) return;
+      const chip = buildChip(card);
+      cell.insertBefore(chip, cell.querySelector('.add-btn'));
+    });
+  }
+
+  function buildChip(card) {
+    const div = el('div', 'card-chip');
+    div.dataset.id  = card.id;
+    div.draggable   = !IS_VIEW_MODE;
+    div.innerHTML   =
+      `<div class="chip-title">${esc(card.title)}</div>` +
+      (card.location     ? `<div class="chip-loc">📍 ${esc(card.location)}</div>`     : '') +
+      (card.participants ? `<div class="chip-ppl">👥 ${esc(card.participants)}</div>` : '');
+    if (!IS_VIEW_MODE) {
+      div.addEventListener('click', e => { e.stopPropagation(); openModal(card.id); });
+      div.addEventListener('dragstart', onDragStart);
+      div.addEventListener('dragend',   onDragEnd);
+    }
+    return div;
+  }
+
+  function renderEmbedCode() {
+    if (IS_VIEW_MODE) return;
+    const ta  = document.getElementById('embed-code');
+    const note = document.getElementById('embed-note-el');
+    if (!ta || !note) return;
+    const encoded = LZString.compressToEncodedURIComponent(JSON.stringify(state));
+    const base    = window.location.href.split('?')[0];
+    const url     = `${base}?view=1&data=${encoded}`;
+    const w = document.getElementById('em-w').value || 1100;
+    const h = document.getElementById('em-h').value || 650;
+    ta.value = `<iframe src="${url}" width="${w}" height="${h}" frameborder="0" style="border:none;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12)"></iframe>`;
+    const span = document.getElementById('url-len');
+    if (span) span.textContent = url.length;
+    if (url.length > 2000) {
+      note.className = 'embed-note warn';
+      note.textContent = `⚠️ URL com ${url.length} chars — pode não funcionar em alguns navegadores.`;
+    } else {
+      note.className = 'embed-note';
+      note.innerHTML = `Tamanho da URL: <span id="url-len">${url.length}</span> caracteres`;
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     6. DRAG & DROP
+  ══════════════════════════════════════════════════════════ */
+
+  let _dragId = null;
+
+  function onDragStart(e) {
+    _dragId = e.currentTarget.dataset.id;
+    e.currentTarget.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', _dragId);
+  }
+
+  function onDragEnd(e) {
+    e.currentTarget.classList.remove('dragging');
+    document.querySelectorAll('.drag-over').forEach(c => c.classList.remove('drag-over'));
+    _dragId = null;
+  }
+
+  function initDnD() {
+    document.querySelectorAll('.slot-cell').forEach(cell => {
+      cell.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        cell.classList.add('drag-over');
+      });
+      cell.addEventListener('dragleave', e => {
+        if (!cell.contains(e.relatedTarget)) cell.classList.remove('drag-over');
+      });
+      cell.addEventListener('drop', e => {
+        e.preventDefault();
+        cell.classList.remove('drag-over');
+        const id = e.dataTransfer.getData('text/plain');
+        if (id) moveCard(id, +cell.dataset.day, cell.dataset.slot);
+      });
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     7. MODAL
+  ══════════════════════════════════════════════════════════ */
+
+  function openModal(cardId, day, slot) {
+    const overlay  = document.getElementById('modal-overlay');
+    const heading  = document.getElementById('modal-heading');
+    const delBtn   = document.getElementById('btn-delete');
+    const form     = document.getElementById('card-form');
+
+    if (cardId) {
+      const card = state.cards.find(c => c.id === cardId);
+      if (!card) return;
+      heading.textContent          = 'Editar Card';
+      form['f-title'].value        = card.title;
+      form['f-location'].value     = card.location     || '';
+      form['f-participants'].value = card.participants  || '';
+      form['f-desc'].value         = card.description  || '';
+      form['f-id'].value           = card.id;
+      form['f-day'].value          = card.day;
+      form['f-slot'].value         = card.slot;
+      delBtn.classList.remove('hidden');
+    } else {
+      heading.textContent = 'Novo Card';
+      form.reset();
+      form['f-id'].value   = '';
+      form['f-day'].value  = day;
+      form['f-slot'].value = slot;
+      delBtn.classList.add('hidden');
+    }
+
+    overlay.classList.remove('hidden');
+    setTimeout(() => form['f-title'].focus(), 40);
+  }
+
+  function closeModal() {
+    document.getElementById('modal-overlay').classList.add('hidden');
+  }
+
+  function initModal() {
+    document.getElementById('modal-close').addEventListener('click', closeModal);
+    document.getElementById('modal-overlay').addEventListener('click', e => {
+      if (e.target === e.currentTarget) closeModal();
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+    document.getElementById('card-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const f = e.target;
+      const title = f['f-title'].value.trim();
+      if (!title) {
+        f['f-title'].style.borderColor = '#e53e3e';
+        f['f-title'].focus();
+        setTimeout(() => f['f-title'].style.borderColor = '', 1400);
+        return;
+      }
+      const id   = f['f-id'].value;
+      const data = {
+        title,
+        location:     f['f-location'].value.trim(),
+        participants: f['f-participants'].value.trim(),
+        description:  f['f-desc'].value.trim(),
+        day:          +f['f-day'].value,
+        slot:         f['f-slot'].value,
+      };
+      if (id) updateCard(id, data); else addCard(data);
+      closeModal();
+    });
+
+    document.getElementById('btn-delete').addEventListener('click', () => {
+      const id = document.getElementById('f-id').value;
+      if (id && confirm('Excluir este card?')) { deleteCard(id); closeModal(); }
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     8. INLINE EDITING
+  ══════════════════════════════════════════════════════════ */
+
+  function initInlineEdit() {
+    const titleEl = document.getElementById('board-title');
+    const descEl  = document.getElementById('board-desc');
+
+    function stripPaste(e) {
+      e.preventDefault();
+      const txt = (e.clipboardData || window.clipboardData).getData('text/plain');
+      document.execCommand('insertText', false, txt);
+    }
+    titleEl.addEventListener('paste', stripPaste);
+    descEl.addEventListener('paste',  stripPaste);
+
+    titleEl.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); titleEl.blur(); }
+    });
+
+    let tT, tD;
+    titleEl.addEventListener('input', () => {
+      clearTimeout(tT);
+      tT = setTimeout(() => { state.title = titleEl.innerText.trim() || 'Quadro Semanal'; saveLS(); renderEmbedCode(); }, 350);
+    });
+    descEl.addEventListener('input', () => {
+      clearTimeout(tD);
+      tD = setTimeout(() => { state.description = descEl.innerText.trim(); saveLS(); renderEmbedCode(); }, 350);
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     9. WEEK SELECTOR
+  ══════════════════════════════════════════════════════════ */
+
+  function initWeekSelector() {
+    const yEl = document.getElementById('sel-year');
+    const wEl = document.getElementById('sel-week');
+    yEl.value = state.year;
+    wEl.value = state.week;
+    wEl.max   = isoWeeksInYear(state.year);
+
+    function apply() {
+      let y = parseInt(yEl.value, 10);
+      let w = parseInt(wEl.value, 10);
+      if (!y || y < 2000 || y > 2099) return;
+      const maxW = isoWeeksInYear(y);
+      wEl.max = maxW;
+      if (!w || w < 1)   w = 1;
+      if (w > maxW)     { w = maxW; wEl.value = w; }
+      setState({ year: y, week: w });
+    }
+
+    yEl.addEventListener('change', apply);
+    wEl.addEventListener('change', apply);
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     10. EMBED PANEL
+  ══════════════════════════════════════════════════════════ */
+
+  function initEmbed() {
+    document.getElementById('embed-toggle').addEventListener('click', () => {
+      const p = document.getElementById('embed-panel');
+      p.classList.toggle('collapsed');
+      if (!p.classList.contains('collapsed')) renderEmbedCode();
+    });
+
+    document.getElementById('btn-copy-embed').addEventListener('click', () => {
+      const code = document.getElementById('embed-code').value;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(code).then(() => {
+          const btn = document.getElementById('btn-copy-embed');
+          btn.textContent = '✓ Copiado!';
+          setTimeout(() => btn.textContent = 'Copiar Código', 2000);
+        });
+      } else {
+        document.getElementById('embed-code').select();
+        document.execCommand('copy');
+        showToast('Código copiado!');
+      }
+    });
+
+    ['em-w', 'em-h'].forEach(id =>
+      document.getElementById(id).addEventListener('input', renderEmbedCode)
+    );
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     11. LOAD FROM URL
+  ══════════════════════════════════════════════════════════ */
+
+  function loadFromURL() {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get('view') !== '1') return;
+    const raw = p.get('data');
+    if (raw) {
+      try {
+        const parsed = JSON.parse(LZString.decompressFromEncodedURIComponent(raw));
+        parsed.cards = (parsed.cards || []).map(c => ({ participants: '', location: '', description: '', ...c }));
+        Object.assign(state, parsed);
+      } catch (_) {
+        showError('Não foi possível carregar os dados do embed. Exibindo quadro padrão.');
+      }
+    }
+    document.getElementById('app').classList.add('view-mode');
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     12. UTILS
+  ══════════════════════════════════════════════════════════ */
+
+  function uid() {
+    return (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+          const r = Math.random() * 16 | 0;
+          return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+        });
+  }
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  function el(tag, cls) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    return e;
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2400);
+  }
+
+  function showError(msg) {
+    document.getElementById('error-msg').textContent = msg;
+    document.getElementById('error-banner').classList.remove('hidden');
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     INIT
+  ══════════════════════════════════════════════════════════ */
+
+  document.addEventListener('DOMContentLoaded', () => {
+    buildGrid();
+
+    if (!IS_VIEW_MODE) loadLS();
+    loadFromURL();
+
+    // Sync header text without touching contenteditable during typing
+    document.getElementById('board-title').innerText = state.title;
+    document.getElementById('board-desc').innerText  = state.description;
+
+    render();
+    initWeekSelector();
+
+    if (!IS_VIEW_MODE) {
+      initInlineEdit();
+      initModal();
+      initDnD();
+      initEmbed();
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
